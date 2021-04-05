@@ -1,5 +1,12 @@
 import th
 import can
+import time
+
+def twentyhz():
+	time1 = time.time()
+    while True:
+    	if time.time() > (time1+0.05):
+        	break
 
 bus = can.interface.Bus(channel='vcan0',bustype='socketcan')
 
@@ -22,8 +29,11 @@ for angle in range(0,10):
 	bus.send(dst510.getCanMessage())
 
 #Test valve control, listens to messages from vcan0
+message = bus.recv()
 while True:
-	message = bus.recv()
+	new_message=bus.recv(0.0)
+    if new_message != None:
+        message=new_message
 	valve.readCanCommand(message)
 	print "Valve flow mm3/s:         " + str(valve.getFlow())
 	pos = cyl.move(valve.getFlow(),0.1)
@@ -33,3 +43,4 @@ while True:
 	print "Steer angle degrees:      " + str(angle)
 	dst510.setAngle(angle)
 	bus.send(dst510.getCanMessage())
+	twentyhz()
