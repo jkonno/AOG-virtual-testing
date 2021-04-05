@@ -1,5 +1,6 @@
 import struct
 import can
+import numpy as np
 
 class HydraulicValve:
 
@@ -116,3 +117,36 @@ class SteeringAngleSensor:
         dataframe[6]=0x00
         dataframe[7]=0x00
         return can.Message(arbitration_id=self.can_id,data=dataframe,is_extended_id=True)
+
+class SteeringRack:
+
+    def __init__(self,pin_loc,rack_joint_loc,tierod_end_loc):
+        #Notation from https://iopscience.iop.org/article/10.1088/1757-899X/148/1/012011
+        b_70 = np.array([0,pin_loc[1]])
+        b_63 = np.array([tierod_end_loc[0]-pin_loc[0],tierod_end_loc[1]-pin_loc[1]])
+        b_70 = b_70/np.linalg.norm(b_70)
+        b_63 = b_63/np.linalg.norm(b_63)
+        self.l_b = 2.0*abs(pin_loc[1])
+        self.l_z = 2.0*abs(rack_joint_loc[1])
+        self.e = abs(float(rack_joint_loc[0]-pin_loc[0]))
+        self.l_d = np.sqrt((rack_joint_loc[0]-tierod_end_loc[0])**2+(rack_joint_loc[1]-tierod_end_loc[1])**2)
+        self.l_r = np.sqrt((pin_loc[0]-tierod_end_loc[0])**2+(pin_loc[1]-tierod_end_loc[1])**2)
+        self.alpha2 = np.arccos(np.dot(b_70,b_63))
+        #Rack displacement
+        self.p = 0.0
+        self.steerAngle = 0.0
+
+    def setSteerAngle(self):
+        A = self.l_r*(self.p+0.5*(self.l_b-self.l_z))
+        B = self.l_r*self.e
+        D = 0.5*(-self.l_d**2+self.e**2+self.l_r**2+(0.5*(self.l_b-self.l_z)+self.p)**2)
+        #Calculate theta angle
+        Theta2 = -2*np.arctan((-B-np.sqrt(A**2+B**2-D**2))/(A+D))
+        self.steerAngle = self.alpha2+Theta2-np.pi
+
+    def getSteerAngleDegrees(self):
+        return self.steerAngle*180.0/np.pi
+
+    def setDisplacement(self,displacement):
+        self.p = displacement
+        self.setSteerAngle()
