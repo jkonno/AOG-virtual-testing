@@ -2,13 +2,8 @@ import th
 import can
 import time
 
-def twentyhz(exectime):
-	time1 = time.time()
-    while True:
-    	if time.time() > (time1+0.05-exectime):
-        	break
-
-bus = can.interface.Bus(channel='vcan0',bustype='socketcan')
+bus = can.interface.Bus(channel='can0',bustype='socketcan')
+bus.set_filters(filters=[{"can_id": 0x0CFE3022, "can_mask": 0x1FFFFFFF, "extended": True}])
 
 #Setup devices
 sasa = th.SteeringAngleSensor()
@@ -24,24 +19,28 @@ for angle in range(0,10):
 	bus.send(sasa.getCanMessage())
 
 #Test angle sensor
-for angle in range(0,10):
-	dst510.setAngle(angle+0.7)
+for angle in range(-10,0):
+	dst510.setAngle(angle/10.0)
 	bus.send(dst510.getCanMessage())
+	time.sleep(0.5)
 
 #Test valve control, listens to messages from vcan0
 message = bus.recv()
+time1=time.time()
+time2=time.time()
 while True:
-	time1=time.time()
-	new_message=bus.recv(0.0)
-    if new_message != None:
-        message=new_message
+	message=bus.recv()
 	valve.readCanCommand(message)
 	print "Valve flow mm3/s:         " + str(valve.getFlow())
-	pos = cyl.move(valve.getFlow(),0.1)
-	print "Cylinder displacement mm: " + str(pos)
+	pos = cyl.move(valve.getFlow(),time.time()-time1)
+	print time.time()-time1
+	time1=time.time()
+	#print "Cylinder displacement mm: " + str(pos)
 	sr.setDisplacement(pos)
 	angle = sr.getSteerAngleDegrees()
 	print "Steer angle degrees:      " + str(angle)
 	dst510.setAngle(angle)
-	bus.send(dst510.getCanMessage())
-	twentyhz(time.time()-time1)
+	#Send angle every 100 ms
+	if (time.time()-time2)>0.1:
+		bus.send(dst510.getCanMessage())
+		time2=time.time()
